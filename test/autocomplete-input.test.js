@@ -1,6 +1,7 @@
 import { expect, fixture, oneEvent, nextFrame, aTimeout } from '@open-wc/testing';
 import '../src/autocomplete-input';
 import { assert } from '@esm-bundle/chai';
+import { sendKeys } from '@web/test-runner-commands';
 
 it('renders the slot when in initial state', async () => {
   const el = await fixture(`
@@ -13,7 +14,7 @@ it('displays an input when opened', async () => {
   const el = await fixture(`
     <autocomplete-input name="foo" search-value="abc">bar</autocomplete-input>
   `);
-  el.shadowRoot.querySelector('div.display-wrapper').click();
+  el.shadowRoot.querySelector('button.display-wrapper').click();
   await el.updated;
   const searchInput = el.shadowRoot.querySelector('input');
   expect(searchInput).to.exist;
@@ -86,4 +87,83 @@ describe('the combobox', () => {
     expect(new FormData(formElement).get('foo')).to.eq('bar')
   });
 
+});
+
+describe('the closed-state trigger', () => {
+  const trigger = (el) => el.shadowRoot.querySelector('button.display-wrapper');
+  const focused = (el) => el.shadowRoot.activeElement;
+
+  it('is a non-submitting button', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" display-value="Alice"></autocomplete-input>`);
+    expect(trigger(el).getAttribute('type')).to.equal('button');
+    expect(trigger(el).querySelector('span').textContent).to.equal('Alice');
+  });
+
+  it('uses the label as its accessible name when there is no display text', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" display-value="" label="Reassign owner"></autocomplete-input>`);
+    expect(trigger(el).getAttribute('aria-label')).to.equal('Reassign owner');
+    expect(trigger(el).querySelector('span')).to.be.null;
+  });
+
+  it('keeps the display text first in its accessible name', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" display-value="Alice" label="Reassign owner"></autocomplete-input>`);
+    expect(trigger(el).getAttribute('aria-label')).to.equal('Alice, Reassign owner');
+  });
+
+  it('has no aria-label without a label, so the display text names it', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" display-value="Alice"></autocomplete-input>`);
+    expect(trigger(el).hasAttribute('aria-label')).to.be.false;
+  });
+
+  it('is reachable with Tab and opens on Enter, focusing the search input', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" display-value="" label="Pick"></autocomplete-input>`);
+    let opened = false;
+    el.addEventListener('autocomplete-open', () => { opened = true; });
+    await sendKeys({ press: 'Tab' });
+    expect(focused(el)).to.equal(trigger(el));
+    await sendKeys({ press: 'Enter' });
+    await el.updateComplete;
+    expect(opened).to.be.true;
+    expect(focused(el)).to.equal(el.searchInput);
+  });
+
+  it('opens on Space', async () => {
+    const el = await fixture(`<autocomplete-input name="foo"></autocomplete-input>`);
+    trigger(el).focus();
+    await sendKeys({ press: 'Space' });
+    await el.updateComplete;
+    expect(el.open).to.be.true;
+    expect(focused(el)).to.equal(el.searchInput);
+  });
+
+  it('closes on Escape and returns focus to the trigger', async () => {
+    const el = await fixture(`<autocomplete-input name="foo"></autocomplete-input>`);
+    trigger(el).focus();
+    await sendKeys({ press: 'Enter' });
+    await el.updateComplete;
+    setTimeout(() => sendKeys({ press: 'Escape' }));
+    await oneEvent(el, 'autocomplete-close');
+    await el.updateComplete;
+    expect(el.open).to.be.false;
+    expect(trigger(el)).to.exist;
+    expect(focused(el)).to.equal(trigger(el));
+  });
+
+  it('returns focus to the trigger when the clear button closes it', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open></autocomplete-input>`);
+    el.shadowRoot.querySelector('button.cancel-icon').click();
+    await el.updateComplete;
+    expect(el.open).to.be.false;
+    expect(trigger(el)).to.exist;
+    expect(focused(el)).to.equal(trigger(el));
+  });
+
+  it('returns focus to the trigger after a commit', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open items='[{"value": "bar", "label": "Bar"}]'></autocomplete-input>`);
+    el.shadowRoot.querySelector('li[data-value="bar"]').click();
+    await el.updateComplete;
+    expect(el.open).to.be.false;
+    expect(trigger(el)).to.exist;
+    expect(focused(el)).to.equal(trigger(el));
+  });
 });

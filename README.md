@@ -38,11 +38,20 @@ detail with the following properties:
 - `value` The value which will be initially used to populate the `FormData` of the associated form.
 - `display-value` this will appear when the element is in the closed state, with an icon next to it indicating
   the user can click to search for options
+- `label` Sent in event details. Also gives the closed-state trigger its accessible name (`aria-label`), which
+  matters when `display-value` is empty and only the edit icon is shown. When both are set the name is
+  `"<display-value>, <label>"`.
 - `min-length` the number of characters the user needs to type to trigger a search.
 - `searchValue` The value which will initially be used to populate the search input.
 - `open` The element will start in the Open mode display the text input
 - `label-property` The property of each item that will be used as the displayed label, defaults to `name`
 - `value-property` The property of each item that will be used as the displayed label, defaults to `id`
+
+## Keyboard
+
+In the closed state the display value and edit icon are a `<button>`, so it is reachable with Tab and opens with
+Enter or Space; opening moves focus into the search input. Escape (or the clear button) closes it, and closing or
+committing a value returns focus to the trigger.
 
 ## Parts
 
