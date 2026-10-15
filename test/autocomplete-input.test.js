@@ -1,4 +1,4 @@
-import { expect, fixture, oneEvent, nextFrame, aTimeout } from '@open-wc/testing';
+import { expect, fixture, oneEvent, nextFrame, aTimeout, waitUntil } from '@open-wc/testing';
 import '../src/autocomplete-input';
 import { assert } from '@esm-bundle/chai';
 import { sendKeys } from '@web/test-runner-commands';
@@ -91,9 +91,17 @@ describe('the combobox', () => {
 
 describe('the closed-state trigger', () => {
   const trigger = (el) => el.shadowRoot.querySelector('button.display-wrapper');
-  const focused = (el) => el.shadowRoot.activeElement;
+  const focusOnTrigger = (el) =>
+    waitUntil(() => trigger(el) && el.shadowRoot.activeElement === trigger(el), 'focus did not return to the trigger');
+  const focusOnInput = (el) =>
+    waitUntil(() => el.searchInput && el.shadowRoot.activeElement === el.searchInput, 'focus did not move to the search input');
+  const count = (el, type) => {
+    const events = [];
+    el.addEventListener(type, (e) => events.push(e));
+    return events;
+  };
 
-  it('is a non-submitting button', async () => {
+  it('is a button with type="button" and the trigger part', async () => {
     const el = await fixture(`<autocomplete-input name="foo" display-value="Alice"></autocomplete-input>`);
     expect(trigger(el).getAttribute('type')).to.equal('button');
     expect(trigger(el).getAttribute('part')).to.equal('trigger');
@@ -116,55 +124,107 @@ describe('the closed-state trigger', () => {
     expect(trigger(el).hasAttribute('aria-label')).to.be.false;
   });
 
-  it('is reachable with Tab and opens on Enter, focusing the search input', async () => {
+  it('is reachable with Tab and opens once on Enter, focusing the search input', async () => {
     const el = await fixture(`<autocomplete-input name="foo" display-value="" label="Pick"></autocomplete-input>`);
-    let opened = false;
-    el.addEventListener('autocomplete-open', () => { opened = true; });
+    const opens = count(el, 'autocomplete-open');
     await sendKeys({ press: 'Tab' });
-    expect(focused(el)).to.equal(trigger(el));
+    await focusOnTrigger(el);
     await sendKeys({ press: 'Enter' });
-    await el.updateComplete;
-    expect(opened).to.be.true;
-    expect(focused(el)).to.equal(el.searchInput);
+    await focusOnInput(el);
+    expect(opens.length).to.equal(1);
+    expect(el.open).to.be.true;
   });
 
-  it('opens on Space', async () => {
+  it('opens once on Space, focusing the search input', async () => {
     const el = await fixture(`<autocomplete-input name="foo"></autocomplete-input>`);
+    const opens = count(el, 'autocomplete-open');
     trigger(el).focus();
     await sendKeys({ press: 'Space' });
-    await el.updateComplete;
+    await focusOnInput(el);
+    expect(opens.length).to.equal(1);
     expect(el.open).to.be.true;
-    expect(focused(el)).to.equal(el.searchInput);
   });
 
   it('closes on Escape and returns focus to the trigger', async () => {
     const el = await fixture(`<autocomplete-input name="foo"></autocomplete-input>`);
+    const closes = count(el, 'autocomplete-close');
     trigger(el).focus();
     await sendKeys({ press: 'Enter' });
-    await el.updateComplete;
-    setTimeout(() => sendKeys({ press: 'Escape' }));
-    await oneEvent(el, 'autocomplete-close');
-    await el.updateComplete;
+    await focusOnInput(el);
+    await sendKeys({ press: 'Escape' });
+    await focusOnTrigger(el);
     expect(el.open).to.be.false;
-    expect(trigger(el)).to.exist;
-    expect(focused(el)).to.equal(trigger(el));
+    expect(closes.length).to.equal(1);
   });
 
   it('returns focus to the trigger when the clear button closes it', async () => {
     const el = await fixture(`<autocomplete-input name="foo" open></autocomplete-input>`);
     el.shadowRoot.querySelector('button.cancel-icon').click();
-    await el.updateComplete;
+    await focusOnTrigger(el);
     expect(el.open).to.be.false;
-    expect(trigger(el)).to.exist;
-    expect(focused(el)).to.equal(trigger(el));
   });
 
-  it('returns focus to the trigger after a commit', async () => {
+  it('commits once and returns focus to the trigger when an option is clicked', async () => {
     const el = await fixture(`<autocomplete-input name="foo" open items='[{"value": "bar", "label": "Bar"}]'></autocomplete-input>`);
+    const commits = count(el, 'autocomplete-commit');
     el.shadowRoot.querySelector('li[data-value="bar"]').click();
-    await el.updateComplete;
+    await focusOnTrigger(el);
     expect(el.open).to.be.false;
-    expect(trigger(el)).to.exist;
-    expect(focused(el)).to.equal(trigger(el));
+    expect(commits.length).to.equal(1);
+  });
+});
+
+describe('the open search input', () => {
+  const trigger = (el) => el.shadowRoot.querySelector('button.display-wrapper');
+
+  it('is named by the label', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open label="Reassign owner"></autocomplete-input>`);
+    expect(el.searchInput.getAttribute('aria-label')).to.equal('Reassign owner');
+  });
+
+  it('has no aria-label without a label', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open></autocomplete-input>`);
+    expect(el.searchInput.hasAttribute('aria-label')).to.be.false;
+  });
+
+  it('commits a highlighted option exactly once on Enter and does not reopen', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open items='[{"value": "bar", "label": "Bar"}, {"value": "baz", "label": "Baz"}]'></autocomplete-input>`);
+    const commits = [];
+    let opens = 0;
+    el.addEventListener('autocomplete-commit', (e) => commits.push(e.detail));
+    el.addEventListener('autocomplete-open', () => { opens += 1; });
+    await waitUntil(() => el.shadowRoot.activeElement === el.searchInput);
+    await sendKeys({ press: 'ArrowDown' });
+    await sendKeys({ press: 'Enter' });
+    await waitUntil(() => trigger(el) && el.shadowRoot.activeElement === trigger(el), 'focus did not return to the trigger');
+    await aTimeout(50);
+    expect(commits.map((d) => d.value)).to.deep.equal(['bar']);
+    expect(opens).to.equal(0);
+    expect(el.open).to.be.false;
+  });
+
+  it('commits a typed custom value exactly once on Enter when nothing is highlighted', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open allow-custom-value debounce="10" items='[{"value": "bar", "label": "Bar"}]'></autocomplete-input>`);
+    const commits = [];
+    el.addEventListener('autocomplete-commit', (e) => commits.push(e.detail));
+    await waitUntil(() => el.shadowRoot.activeElement === el.searchInput);
+    await sendKeys({ type: 'custom' });
+    await sendKeys({ press: 'Enter' });
+    await waitUntil(() => commits.length > 0);
+    await aTimeout(50);
+    expect(commits.map((d) => d.value)).to.deep.equal(['custom']);
+    expect(el.open).to.be.false;
+  });
+
+  it('does not commit on Enter without a highlighted option or custom values', async () => {
+    const el = await fixture(`<autocomplete-input name="foo" open items='[{"value": "bar", "label": "Bar"}]'></autocomplete-input>`);
+    let commits = 0;
+    el.addEventListener('autocomplete-commit', () => { commits += 1; });
+    await waitUntil(() => el.shadowRoot.activeElement === el.searchInput);
+    await sendKeys({ type: 'zzz' });
+    await sendKeys({ press: 'Enter' });
+    await aTimeout(50);
+    expect(commits).to.equal(0);
+    expect(el.open).to.be.true;
   });
 });

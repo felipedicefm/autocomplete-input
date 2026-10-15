@@ -114,8 +114,9 @@ export class AutocompleteInputElement extends LitElement {
       background: none;
       color: inherit;
       font: inherit;
-      line-height: inherit;
       letter-spacing: inherit;
+      word-spacing: inherit;
+      text-indent: inherit;
       text-align: inherit;
       text-transform: inherit;
     }
@@ -185,7 +186,7 @@ export class AutocompleteInputElement extends LitElement {
 
   async focusTrigger() {
     await this.updateComplete;
-    this.trigger?.focus();
+    this.trigger.focus();
   }
 
   startSearch() {
@@ -213,7 +214,7 @@ export class AutocompleteInputElement extends LitElement {
   render() {
     return this.open ? html`
       <div class="input-wrapper" part="input-wrapper">
-        <input name="${this.name}" .value="${this.searchValue}" @keydown=${this.onKeyDown} part="input" autocomplete="off" @input=${debounce((e) => this.onSearch(e), this.debounce)}>
+        <input name="${this.name}" .value="${this.searchValue}" @keydown=${this.onKeyDown} part="input" aria-label=${this.label || nothing} autocomplete="off" @input=${debounce((e) => this.onSearch(e), this.debounce)}>
         <button type="button" class="cancel-icon" slot="cancel-icon" @click=${this.cancelAndFocusTrigger} aria-label="Clear input">×</button>
       </div>
       ${this.items?.length > 0 ? html`
@@ -245,13 +246,14 @@ export class AutocompleteInputElement extends LitElement {
     } else if (e.key === 'Enter') {
       e.preventDefault();
 
-      const selectedOption = this.list?.querySelector('li[part="selected-option"]');
+      // A highlighted option is committed by combobox-nav (it clicks the
+      // option, which fires combobox-commit), so committing it here too
+      // would send autocomplete-commit twice.
+      const hasSelectedOption = this.list?.querySelector('[aria-selected="true"]');
 
-      if (selectedOption) {
-        this.onCommit({ target: selectedOption });
       // If the component allows custom values and the user has typed something,
       // commit that value.
-      } else if (this.allowCustomValue && this.searchInput.value) {
+      if (!hasSelectedOption && this.allowCustomValue && this.searchInput.value) {
         this.onCommit({ target: this.searchInput });
       }
       e.stopPropagation();

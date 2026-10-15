@@ -38,9 +38,10 @@ detail with the following properties:
 - `value` The value which will be initially used to populate the `FormData` of the associated form.
 - `display-value` this will appear when the element is in the closed state, with an icon next to it indicating
   the user can click to search for options
-- `label` Sent in event details. Also gives the closed-state trigger its accessible name (`aria-label`), which
-  matters when `display-value` is empty and only the edit icon is shown. When both are set the name is
-  `"<display-value>, <label>"`.
+- `label` Sent as `label` in the `autocomplete-search` and `autocomplete-commit` event details. It is also the
+  accessible name (`aria-label`) of the search input and of the closed-state trigger; when both `label` and
+  `display-value` are set the trigger's name is `"<display-value>, <label>"`. Required when `display-value` is
+  empty, since the trigger then shows only the edit icon and has no other name.
 - `min-length` the number of characters the user needs to type to trigger a search.
 - `searchValue` The value which will initially be used to populate the search input.
 - `open` The element will start in the Open mode display the text input
@@ -50,8 +51,9 @@ detail with the following properties:
 ## Keyboard
 
 In the closed state the display value and edit icon are a `<button>`, so it is reachable with Tab and opens with
-Enter or Space; opening moves focus into the search input. Escape (or the clear button) closes it, and closing or
-committing a value returns focus to the trigger.
+Enter or Space; opening moves focus into the search input. Pressing Escape or the clear button closes it and
+returns focus to the trigger, and so does committing a value. Calling `cancel()` programmatically closes it
+without moving focus.
 
 ## Parts
 
