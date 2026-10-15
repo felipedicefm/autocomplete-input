@@ -1,6 +1,6 @@
 import Combobox from '@github/combobox-nav';
 import debounce from './debounce.js';
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 
 export class AutocompleteInputElement extends LitElement {
   static formAssociated = true;
@@ -102,6 +102,25 @@ export class AutocompleteInputElement extends LitElement {
       cursor: pointer;
     }
 
+    /* The trigger is a <button>: reset the UA styles so it looks like
+       the plain text + icon row it replaced. */
+    button.display-wrapper {
+      appearance: none;
+      box-sizing: border-box;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      word-spacing: inherit;
+      text-indent: inherit;
+      text-align: inherit;
+      text-transform: inherit;
+    }
+
     .edit-icon {
       color: #666;
       font-size: 14px;
@@ -158,6 +177,18 @@ export class AutocompleteInputElement extends LitElement {
     this.items = [];
   }
 
+  // Closes from a user action inside the open element and hands focus
+  // back to the trigger, so keyboard users aren't dropped on <body>.
+  cancelAndFocusTrigger() {
+    this.cancel();
+    this.focusTrigger();
+  }
+
+  async focusTrigger() {
+    await this.updateComplete;
+    this.trigger.focus();
+  }
+
   startSearch() {
     this.dispatchEvent(new CustomEvent('autocomplete-open', { detail: { name: this.name } }));
     this.open = true;
@@ -183,8 +214,8 @@ export class AutocompleteInputElement extends LitElement {
   render() {
     return this.open ? html`
       <div class="input-wrapper" part="input-wrapper">
-        <input name="${this.name}" .value="${this.searchValue}" @keydown=${this.onKeyDown} part="input" autocomplete="off" @input=${debounce((e) => this.onSearch(e), this.debounce)}>
-        <button class="cancel-icon" slot="cancel-icon" @click=${this.cancel} aria-label="Clear input">×</button>
+        <input name="${this.name}" .value="${this.searchValue}" @keydown=${this.onKeyDown} part="input" aria-label=${this.label || nothing} autocomplete="off" @input=${debounce((e) => this.onSearch(e), this.debounce)}>
+        <button type="button" class="cancel-icon" slot="cancel-icon" @click=${this.cancelAndFocusTrigger} aria-label="Clear input">×</button>
       </div>
       ${this.items?.length > 0 ? html`
         <ul part="list">
@@ -192,29 +223,37 @@ export class AutocompleteInputElement extends LitElement {
         </ul>
       ` : ''}
     ` : html`
-      <div class="display-wrapper" @click=${this.startSearch}>
-        <span>${this.displayValue}</span>
+      <button type="button" class="display-wrapper" part="trigger" aria-label=${this.triggerLabel ?? nothing} @click=${this.startSearch}>
+        ${this.displayValue ? html`<span>${this.displayValue}</span>` : nothing}
         <svg class="edit-icon" slot="edit-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z"/>
         </svg>
-      </div>
+      </button>
     `;
+  }
+
+  // Accessible name for the closed-state trigger. Keeps the visible
+  // display value first so the name still matches what's on screen.
+  get triggerLabel() {
+    if (!this.label) return undefined;
+    return this.displayValue ? `${this.displayValue}, ${this.label}` : this.label;
   }
 
   onKeyDown(e) {
     if (e.key === 'Escape') {
-      this.cancel();
+      this.cancelAndFocusTrigger();
       e.stopPropagation();
     } else if (e.key === 'Enter') {
       e.preventDefault();
 
-      const selectedOption = this.list?.querySelector('li[part="selected-option"]');
+      // A highlighted option is committed by combobox-nav (it clicks the
+      // option, which fires combobox-commit), so committing it here too
+      // would send autocomplete-commit twice.
+      const hasSelectedOption = this.list?.querySelector('[aria-selected="true"]');
 
-      if (selectedOption) {
-        this.onCommit({ target: selectedOption });
       // If the component allows custom values and the user has typed something,
       // commit that value.
-      } else if (this.allowCustomValue && this.searchInput.value) {
+      if (!hasSelectedOption && this.allowCustomValue && this.searchInput.value) {
         this.onCommit({ target: this.searchInput });
       }
       e.stopPropagation();
@@ -282,6 +321,7 @@ export class AutocompleteInputElement extends LitElement {
       bubbles: true
     }));
     this.dispatchEvent(new Event('input', { bubbles: true }));
+    this.focusTrigger();
   }
 
   get list() {
@@ -307,6 +347,10 @@ export class AutocompleteInputElement extends LitElement {
 
   disconnectedCallback() {
     this.combobox && this.combobox.stop();
+  }
+
+  get trigger() {
+    return this.shadowRoot.querySelector('button.display-wrapper');
   }
 
   get searchInput() {

@@ -38,16 +38,29 @@ detail with the following properties:
 - `value` The value which will be initially used to populate the `FormData` of the associated form.
 - `display-value` this will appear when the element is in the closed state, with an icon next to it indicating
   the user can click to search for options
+- `label` Sent as `label` in the `autocomplete-search` and `autocomplete-commit` event details. It is also the
+  accessible name (`aria-label`) of the search input and of the closed-state trigger; when both `label` and
+  `display-value` are set the trigger's name is `"<display-value>, <label>"`. Required when `display-value` is
+  empty, since the trigger then shows only the edit icon and has no other name.
 - `min-length` the number of characters the user needs to type to trigger a search.
 - `searchValue` The value which will initially be used to populate the search input.
 - `open` The element will start in the Open mode display the text input
 - `label-property` The property of each item that will be used as the displayed label, defaults to `name`
 - `value-property` The property of each item that will be used as the displayed label, defaults to `id`
 
+## Keyboard
+
+In the closed state the display value and edit icon are a `<button>`, so it is reachable with Tab and opens with
+Enter or Space; opening moves focus into the search input. Pressing Escape or the clear button closes it and
+returns focus to the trigger, and so does committing a value. Calling `cancel()` programmatically closes it
+without moving focus.
+
 ## Parts
 
 The following parts are available for styling using [part selectors]([text](https://developer.mozilla.org/en-US/docs/Web/CSS/::part))
 
+- `trigger` The closed-state `<button>` holding the display value and edit icon, eg to style its focus ring
+  with `autocomplete-input::part(trigger):focus-visible`
 - `list` The list of options, only displayed if the autocomplete is open
 - `option` All of the option `li` elements will have this part assigned
 - `selected-option` This is the option currently focused by keyboard navigation
