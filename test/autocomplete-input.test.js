@@ -96,6 +96,7 @@ describe('the closed-state trigger', () => {
   it('is a non-submitting button', async () => {
     const el = await fixture(`<autocomplete-input name="foo" display-value="Alice"></autocomplete-input>`);
     expect(trigger(el).getAttribute('type')).to.equal('button');
+    expect(trigger(el).getAttribute('part')).to.equal('trigger');
     expect(trigger(el).querySelector('span').textContent).to.equal('Alice');
   });
 

@@ -57,6 +57,8 @@ committing a value returns focus to the trigger.
 
 The following parts are available for styling using [part selectors]([text](https://developer.mozilla.org/en-US/docs/Web/CSS/::part))
 
+- `trigger` The closed-state `<button>` holding the display value and edit icon, eg to style its focus ring
+  with `autocomplete-input::part(trigger):focus-visible`
 - `list` The list of options, only displayed if the autocomplete is open
 - `option` All of the option `li` elements will have this part assigned
 - `selected-option` This is the option currently focused by keyboard navigation
